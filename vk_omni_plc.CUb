@@ -1,0 +1,216 @@
+#include "MSB6XX"
+
+Dim Buffer(4) As Byte
+Dim Dummy(10) As Byte
+Dim Checksum As Byte
+Dim Resend_count As Byte
+
+Dim Status As Byte ' This variable save the last status
+
+Opencom 1, 115200, 3, 10, 10
+Opencom 2, 115200, 3, 10, 10 ' Debug com
+On Recv1 Gosub GOTDATA
+Set Until 1, 4, 10
+
+Const Motor_1 As Integer = 35
+Const Motor_2 As Integer = 36
+Const Motor_3 As Integer = 37
+
+Const GreenLed As Integer = 33
+Const YellowLed As Integer = 34
+
+Const EmergencyInput As Integer = 23
+Const ResetInput As Integer = 10
+Const Ready As Integer = 22 ' This is for testing only (delete this)
+
+Const TIMEOUT As Byte = 30
+
+Const ADDRESS As Byte = 156 ' Address of this slave
+Const CONTROL As Byte = 103 ' Control message
+Const ACKNOWLEDGE As Byte = 104 ' Acknowledge message
+Const RESEND_REQUEST As Byte = 105 ' Resend request
+
+Const INI_CODE As Byte = 9
+Const EMG_CODE As Byte = 10
+Const PRT_CODE As Byte = 11
+Const NOM_CODE As Byte = 12
+Const RDY_CODE As Byte = 13
+Const RST_CODE As Byte = 14
+Const ERR_CODE As Byte = 15
+
+Resend_count = 0
+StopMotor
+
+' Set status
+Status = INI_CODE
+
+' Start initialization
+Dim K As Byte
+
+For K =0 To TIMEOUT
+	' Toggle green led
+	LedToggle GreenLed,500
+Next
+
+' Initialization failed, reboot required
+Gosub ERROR
+	
+NORMAL:
+	' Set status
+	Status = NOM_CODE
+	' Send acknowledge message
+	AcknowledgeHandle NOM_CODE
+	On Recv1 Gosub GOTDATA
+	Set Until 1, 4, 10
+	Do
+		' Poll for emergency
+		If In(EmergencyInput) = 1 Then Gosub EMERGENCY
+	Loop
+	Return
+
+PROTECTIVE:
+	' Set status
+	Status = PRT_CODE
+	' Send acknowledge message
+	AcknowledgeHandle PRT_CODE
+	On Recv1 Gosub GOTDATA
+	Set Until 1, 4, 10
+	StopMotor
+	Do
+		' Toggle yellow led
+		LedToggle YellowLed,500
+		' AcknowledgeHandle 0
+	Loop
+	Return
+	
+EMERGENCY:
+	' Set status
+	Status = EMG_CODE
+	' Send acknowledge message
+	AcknowledgeHandle EMG_CODE
+	' Stop motors
+	StopMotor
+	' Set yellow led
+	LedSet YellowLed
+	Do
+		' Do nothing here
+	Loop While In(EmergencyInput) = 1
+	' Unset yellow led
+	LedUnset YellowLed
+	' Start motors
+	StartMotor
+	Return
+		
+GOTDATA:
+	Wait 1
+	If Blen(1,0) <> 4 Then
+		Geta 1, Dummy, 10
+		Return
+	Endif
+	Geta 1, Buffer, 4
+	' Check sum
+	Checksum = Buffer(0) + Buffer(1) + Buffer(2) + Buffer(3)
+	If Checksum = 0xFF And Buffer(0) = ADDRESS And Buffer(1) = CONTROL Then
+		' Reset count
+		Resend_count = 0
+		' Call control handler
+		ControlHandle Buffer(2)
+	Else
+		Incr Resend_count
+		' Send Resend-request
+		ResendRequest
+	Endif
+	If Resend_count > 5 Then
+			Resend_count = 0
+			Gosub ERROR
+	Endif
+	Return
+
+ERROR:
+	StopMotor
+	' Turn off green led
+	LedUnset GreenLed
+	Do
+		' Send Error code
+		AcknowledgeHandle ERR_CODE
+		' Toggle yellow led
+		LedToggle YellowLed,500
+	Loop
+	Return
+
+End
+
+Sub LedToggle(Addr As Integer, T As Integer)
+	High Addr
+	Wait T
+	Low Addr
+	Wait T
+End Sub
+
+Sub LedSet(Addr As Integer)
+	High Addr
+End Sub
+
+Sub LedUnset(Addr As Integer)
+	Low Addr
+End Sub
+
+Sub StopMotor()
+	Low Motor_1
+	Low Motor_2
+	Low Motor_2
+End Sub
+
+Sub StartMotor()
+	High Motor_1
+	High Motor_2
+	High Motor_3
+End Sub
+
+Sub ControlHandle(Data As Byte)
+	Select Case Data
+		Case PRT_CODE
+			If Status = NOM_CODE Then
+				' Protective code
+				Gosub PROTECTIVE
+			Else
+				ResendRequest
+			Endif
+		Case RST_CODE
+			If Status = PRT_CODE Then
+				' Turn off yellow led
+				LedUnset YellowLed
+				' Return to normal operation
+				Gosub NORMAL
+			Else
+				ResendRequest
+			Endif
+		Case RDY_CODE
+			If Status = INI_CODE Then
+				' Turn on green led
+				LedSet GreenLed
+				' Go to protective mode
+				Gosub PROTECTIVE
+			Else
+				ResendRequest
+			Endif
+		Case Else
+			' Unknown code
+			ResendRequest
+	End Select
+End Sub
+
+Sub ResendRequest()
+	AcknowledgeHandle RESEND_REQUEST
+End Sub
+
+Sub AcknowledgeHandle(Data As Byte)
+	If Blen(1,1) <> 0 Then Geta 1, Dummy, 10
+	Buffer(0) = ADDRESS
+	Buffer(1) = ACKNOWLEDGE
+	Buffer(2) = Data
+	Buffer(3) = 0xFF - (Buffer(0) + Buffer(1) + Buffer(2))
+	' Send acknowledge message
+	Puta 1, Buffer, 4
+	Puta 2, Buffer, 4
+End Sub
