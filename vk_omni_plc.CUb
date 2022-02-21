@@ -28,15 +28,17 @@ Const TIMEOUT As Byte = 30
 Const ADDRESS As Byte = 156 ' Address of this slave
 Const CONTROL As Byte = 103 ' Control message
 Const ACKNOWLEDGE As Byte = 104 ' Acknowledge message
-Const RESEND_REQUEST As Byte = 105 ' Resend request
 
-Const INI_CODE As Byte = 9
-Const EMG_CODE As Byte = 10
-Const PRT_CODE As Byte = 11
-Const NOM_CODE As Byte = 12
-Const RDY_CODE As Byte = 13
-Const RST_CODE As Byte = 14
-Const ERR_CODE As Byte = 15
+' Serial communication codes
+Const RES_CODE As Byte = 8 ' Resend
+Const INI_CODE As Byte = 9 ' Init
+Const EMG_CODE As Byte = 10 ' Emergency
+Const PRT_CODE As Byte = 11 ' Protective
+Const NOM_CODE As Byte = 12 ' Normal
+Const RDY_CODE As Byte = 13 ' Ready
+Const RST_CODE As Byte = 14 ' Reset
+Const ERR_CODE As Byte = 15 ' Error
+Const STT_CODE As Byte = 16 ' Status
 
 Resend_count = 0
 StopMotor
@@ -194,6 +196,9 @@ Sub ControlHandle(Data As Byte)
 			Else
 				ResendRequest
 			Endif
+		Case STT_CODE
+			' Send status
+			AcknowledgeHandle Status
 		Case Else
 			' Unknown code
 			ResendRequest
@@ -201,7 +206,7 @@ Sub ControlHandle(Data As Byte)
 End Sub
 
 Sub ResendRequest()
-	AcknowledgeHandle RESEND_REQUEST
+	AcknowledgeHandle RES_CODE
 End Sub
 
 Sub AcknowledgeHandle(Data As Byte)
