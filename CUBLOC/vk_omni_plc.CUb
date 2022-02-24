@@ -20,8 +20,6 @@ Const GreenLed As Integer = 33
 Const YellowLed As Integer = 34
 
 Const EmergencyInput As Integer = 23
-Const ResetInput As Integer = 10
-Const Ready As Integer = 22 ' This is for testing only (delete this)
 
 Const TIMEOUT As Byte = 30
 
@@ -35,10 +33,11 @@ Const INI_CODE As Byte = 9 ' Init
 Const EMG_CODE As Byte = 10 ' Emergency
 Const PRT_CODE As Byte = 11 ' Protective
 Const NOM_CODE As Byte = 12 ' Normal
-Const RDY_CODE As Byte = 13 ' Ready
-Const RST_CODE As Byte = 14 ' Reset
-Const ERR_CODE As Byte = 15 ' Error
-Const STT_CODE As Byte = 16 ' Status
+Const ERR_CODE As Byte = 13 ' Error
+
+Const RDY_CODE As Byte = 21 ' Ready
+Const RST_CODE As Byte = 22 ' Reset
+Const STT_CODE As Byte = 23 ' Status
 
 Resend_count = 0
 StopMotor
