@@ -9,6 +9,7 @@
 
 #define DEFAULT_BAUDRATE BaudRate::B_115200
 #define DEFAULT_DEVICE "/dev/ttyUSB0"
+#define DEFAULT_WAIT_MICROS 10000
 
 /*acknowledge codes*/
 #define RES_CODE 8

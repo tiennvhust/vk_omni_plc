@@ -88,6 +88,13 @@ void safetyPLC::commandSend(std_msgs::UInt8 msg)
 
 	/*send message*/
 	port->WriteBinary(buff);
+
+	usleep(DEFAULT_WAIT_MICROS);
+
+	while (responseRead() && !(statusPLC->flag))
+	{
+		resendHandler();
+	}
 }
 
 /*handle response data*/
@@ -105,7 +112,7 @@ int safetyPLC::responseRead()
 	{
 		case RES_CODE:
 		{
-			resendHandler();
+			return 2;
 		}
 
 		default:
@@ -132,6 +139,7 @@ void safetyPLC::resendHandler()
 	{
 		/*publish warning message*/
 		statusPLC->raiseFlag();
+		statusPLC->resetResendCount();
 	}
 
 	/*resend the lastest command*/
