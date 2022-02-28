@@ -21,7 +21,7 @@ Const YellowLed As Integer = 34
 
 Const EmergencyInput As Integer = 23
 
-Const TIMEOUT As Byte = 30
+Const TIMEOUT As Byte = 120
 
 Const ADDRESS As Byte = 156 ' Address of this slave
 Const CONTROL As Byte = 103 ' Control message
@@ -59,6 +59,8 @@ Gosub ERROR
 NORMAL:
 	' Set status
 	Status = NOM_CODE
+	' Start motors
+	StartMotor
 	' Send acknowledge message
 	AcknowledgeHandle NOM_CODE
 	On Recv1 Gosub GOTDATA
@@ -98,8 +100,6 @@ EMERGENCY:
 	Loop While In(EmergencyInput) = 1
 	' Unset yellow led
 	LedUnset YellowLed
-	' Start motors
-	StartMotor
 	Return
 		
 GOTDATA:
@@ -111,7 +111,7 @@ GOTDATA:
 	Geta 1, Buffer, 4
 	' Check sum
 	Checksum = Buffer(0) + Buffer(1) + Buffer(2) + Buffer(3)
-	If Checksum = 0xFF And Buffer(0) = ADDRESS And Buffer(1) = CONTROL Then
+	If Checksum = 0 And Buffer(0) = ADDRESS And Buffer(1) = CONTROL Then
 		' Reset count
 		Resend_count = 0
 		' Call control handler
@@ -213,7 +213,7 @@ Sub AcknowledgeHandle(Data As Byte)
 	Buffer(0) = ADDRESS
 	Buffer(1) = ACKNOWLEDGE
 	Buffer(2) = Data
-	Buffer(3) = 0xFF - (Buffer(0) + Buffer(1) + Buffer(2))
+	Buffer(3) = 0xFF - (Buffer(0) + Buffer(1) + Buffer(2)) + 1
 	' Send acknowledge message
 	Puta 1, Buffer, 4
 	Puta 2, Buffer, 4
