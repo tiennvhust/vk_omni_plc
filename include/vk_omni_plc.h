@@ -3,7 +3,11 @@
 
 #include "CppLinuxSerial/SerialPort.hpp"
 #include "vk_omni_plc_serial.h"
+
 #include <memory>
+#include <vector>
+#include <thread>
+
 #include <ros/ros.h>
 #include <std_msgs/UInt8.h>
 
@@ -25,18 +29,13 @@ namespace safety
 		int resendCount; /*resend counter*/
 	
 		std_msgs::UInt8 lastCommand; /*store the lastest command*/
-	
-		bool flag; /*flag for communication error warning*/
-	
-		safetyPLCStatus() : resendCount(0),	flag(false)	{}
+		
+		safetyPLCStatus() : resendCount(0) {}
 
 		void increaseResendCount() { resendCount++; }
 
 		void resetResendCount() { resendCount = 0; }
 
-		void raiseFlag() { flag = true; }
-
-		void resetFlag() { flag = false; }
 	};
 	
 	class safetyPLC 
@@ -55,6 +54,14 @@ namespace safety
 			std_msgs::UInt8 status; /*status*/
 
 			std::unique_ptr<safetyPLCStatus> statusPLC;
+
+			std::thread readThread;
+
+			bool threadAlive, flag;
+
+			void flagUp() { flag = true; };
+
+			void flagDown() { flag = false; };
 		
 		public:
 			safetyPLC(ros::NodeHandle *nh); /*default constructor*/
@@ -66,6 +73,8 @@ namespace safety
 			void commandSend(std_msgs::UInt8 msg); /*send commands*/
 		
 			int responseRead(); /*handle response data*/
+
+			void responseHandler(); /*data read loop*/
 		
 			void statusUpdate(uint8_t data); /*update status*/
 		

@@ -1,8 +1,7 @@
 #include "vk_omni_plc_serial.h"
 #include "vk_omni_plc.h"
-#include <std_msgs/UInt8.h>
-#include <vector>
-#include <ros/ros.h>
+
+#include <chrono>
 
 using namespace mn::CppLinuxSerial;
 using namespace safety;
@@ -40,35 +39,54 @@ void AddCheckSum(std::vector<uint8_t> &data) {
 
 /*constructors*/
 safetyPLC::safetyPLC(ros::NodeHandle *nh) : 
-		id(156)
+		id(156),
+		threadAlive(true),
+		flag(false)
 {
 	statusPublisher = nh->advertise<std_msgs::UInt8>("robot_status", 1);
 
-	commandSubscriber = nh->subscribe("safety_command", 10, &safetyPLC::commandSend, this);
+	commandSubscriber = nh->subscribe("plc_commands", 10, &safetyPLC::commandSend, this);
 
 	port = std::make_unique<SerialPort>(DEFAULT_DEVICE, DEFAULT_BAUDRATE);
 
 	statusPLC = std::unique_ptr<safetyPLCStatus>(new safetyPLCStatus());
 
+	/*open the serial port*/
 	port->Open();
+
+	/*start reading thread*/
+	readThread = std::thread (&safetyPLC::responseHandler, this);
 }
 
 safetyPLC::safetyPLC(ros::NodeHandle *nh, const std::string& device, int addr) :
-		id(addr)
+		id(addr),
+		threadAlive(true),
+		flag(false)
 {
 	statusPublisher = nh->advertise<std_msgs::UInt8>("robot_status", 1);
 
-	commandSubscriber = nh->subscribe("safety_command", 10, &safetyPLC::commandSend, this);
+	commandSubscriber = nh->subscribe("plc_commands", 10, &safetyPLC::commandSend, this);
 
 	port = std::make_unique<SerialPort>(device, DEFAULT_BAUDRATE);
 
 	statusPLC = std::unique_ptr<safetyPLCStatus>(new safetyPLCStatus());
 
+	/*open the serial port*/
 	port->Open();
+
+	/*start reading thread*/
+	readThread = std::thread (&safetyPLC::responseHandler, this);
 }
 
 /*de-constructor*/
-safetyPLC::~safetyPLC() {}
+safetyPLC::~safetyPLC()
+{
+	threadAlive = false;
+
+	readThread.join();
+
+	port->Close();
+}
 
 /*send commands*/
 void safetyPLC::commandSend(std_msgs::UInt8 msg)
@@ -77,23 +95,26 @@ void safetyPLC::commandSend(std_msgs::UInt8 msg)
 	statusPLC->lastCommand = msg;
 
 	std::vector<uint8_t> buff;
+
+	buff.reserve(4);
 	
-	buff.push_back(ADDRESS);
+	buff.emplace_back(ADDRESS);
 
-	buff.push_back(CONTROL);
+	buff.emplace_back(CONTROL);
 
-	buff.push_back(msg.data);
+	buff.emplace_back(msg.data);
 
 	AddCheckSum(buff);
 
 	/*send message*/
 	port->WriteBinary(buff);
+}
 
-	usleep(DEFAULT_WAIT_MICROS);
-
-	while (responseRead() && !(statusPLC->flag))
+void safetyPLC::responseHandler()
+{
+	while(threadAlive)
 	{
-		resendHandler();
+		if(port->Available()) responseRead();
 	}
 }
 
@@ -102,26 +123,39 @@ int safetyPLC::responseRead()
 {
 	std::vector<uint8_t> buff;
 
-	port->ReadBinary(buff);
+	while (port->Available())
+	{
+		port->ReadBinary(buff); /*return after timeout*/
+	}
 
-	if (CheckSum) return -1;
+	if (CheckSum(buff)) return -1;
 
 	if (buff[0] != ADDRESS || buff[1] != ACKNOWLEDGE || buff[2] > 13 || buff[2] < 8) return 1;
 	
-	switch(buff[3])
+	switch(buff[2])
 	{
 		case RES_CODE:
 		{
+			if(flag)
+			{
+				flagDown();
+
+				return -2;
+			}
+			resendHandler();
+
 			return 2;
 		}
 
 		default:
 		{
 			if(statusPLC->resendCount != 0) statusPLC->resetResendCount();
-			statusUpdate(buff[3]);
+
+			statusUpdate(buff[2]);
+
+			return 0;
 		}
 	}
-	return 0;
 }
 
 /*update current status*/
@@ -135,17 +169,12 @@ void safetyPLC::statusUpdate(uint8_t data)
 /*handle resend request*/
 void safetyPLC::resendHandler()
 {
-	if(statusPLC->resendCount > 3)
-	{
-		/*publish warning message*/
-		statusPLC->raiseFlag();
-		statusPLC->resetResendCount();
-	}
+	statusPLC->increaseResendCount();
+
+	if (statusPLC->resendCount > 3) flagUp();
 
 	/*resend the lastest command*/
 	commandSend(statusPLC->lastCommand);
-
-	statusPLC->increaseResendCount();
 }
 
 int main(int argc, char **argv)
@@ -156,18 +185,12 @@ int main(int argc, char **argv)
 
 	safetyPLC plc(&nh);
 
-	ROS_INFO("Start vk_omni_plc node.\n");
+	ROS_INFO("vk_omni_plc started.\n");
 
 	/*send ready message to plc*/
 	plc.commandSend(msg_(RDY_CODE));
 
 	ROS_INFO("Ready state.\n");
-
-	ros::Duration(0.5).sleep();
-
-	plc.commandSend(msg_(RST_CODE));
-
-	ROS_INFO("Normal state.\n");
 
 	ros::spin();
 }
