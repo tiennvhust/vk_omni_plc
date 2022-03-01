@@ -1,5 +1,5 @@
-#include "vk_omni_plc_serial.h"
-#include "vk_omni_plc.h"
+#include "vk_omni_plc/vk_omni_plc_serial.h"
+#include "vk_omni_plc/vk_omni_plc.h"
 
 #include <chrono>
 
@@ -40,8 +40,7 @@ void AddCheckSum(std::vector<uint8_t> &data) {
 /*constructors*/
 safetyPLC::safetyPLC(ros::NodeHandle *nh) : 
 		id(156),
-		threadAlive(true),
-		flag(false)
+		threadAlive(true)
 {
 	statusPublisher = nh->advertise<std_msgs::UInt8>("robot_status", 1);
 
@@ -60,8 +59,7 @@ safetyPLC::safetyPLC(ros::NodeHandle *nh) :
 
 safetyPLC::safetyPLC(ros::NodeHandle *nh, const std::string& device, int addr) :
 		id(addr),
-		threadAlive(true),
-		flag(false)
+		threadAlive(true)
 {
 	statusPublisher = nh->advertise<std_msgs::UInt8>("robot_status", 1);
 
@@ -136,9 +134,9 @@ int safetyPLC::responseRead()
 	{
 		case RES_CODE:
 		{
-			if(flag)
+			if(statusPLC->flag)
 			{
-				flagDown();
+				statusPLC->flagDown();
 
 				return -2;
 			}
@@ -171,7 +169,7 @@ void safetyPLC::resendHandler()
 {
 	statusPLC->increaseResendCount();
 
-	if (statusPLC->resendCount > 3) flagUp();
+	if (statusPLC->resendCount > 3) statusPLC->flagUp();
 
 	/*resend the lastest command*/
 	commandSend(statusPLC->lastCommand);

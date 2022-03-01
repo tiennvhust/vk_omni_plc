@@ -27,14 +27,20 @@ namespace safety
 	struct safetyPLCStatus
 	{
 		int resendCount; /*resend counter*/
+
+		bool flag;
 	
 		std_msgs::UInt8 lastCommand; /*store the lastest command*/
 		
-		safetyPLCStatus() : resendCount(0) {}
+		safetyPLCStatus() : resendCount(0), flag(false) {}
 
 		void increaseResendCount() { resendCount++; }
 
 		void resetResendCount() { resendCount = 0; }
+
+		void flagUp() { flag = true; };
+
+		void flagDown() { flag = false; };
 
 	};
 	
@@ -57,11 +63,13 @@ namespace safety
 
 			std::thread readThread;
 
-			bool threadAlive, flag;
+			bool threadAlive;
 
-			void flagUp() { flag = true; };
+			int responseRead(); /*handle response data*/
 
-			void flagDown() { flag = false; };
+			void responseHandler(); /*data read loop*/
+
+			void resendHandler(); /*handle resend request*/
 		
 		public:
 			safetyPLC(ros::NodeHandle *nh); /*default constructor*/
@@ -72,13 +80,7 @@ namespace safety
 		
 			void commandSend(std_msgs::UInt8 msg); /*send commands*/
 		
-			int responseRead(); /*handle response data*/
-
-			void responseHandler(); /*data read loop*/
-		
-			void statusUpdate(uint8_t data); /*update status*/
-		
-			void resendHandler(); /*handle resend request*/
+			void statusUpdate(uint8_t data); /*update status*/		
 	};
 }
 
