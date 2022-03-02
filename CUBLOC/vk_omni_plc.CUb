@@ -40,7 +40,6 @@ Const RST_CODE As Byte = 22 ' Reset
 Const STT_CODE As Byte = 23 ' Status
 
 Resend_count = 0
-StopMotor
 
 ' Set status
 Status = INI_CODE
@@ -100,6 +99,12 @@ EMERGENCY:
 	Loop While In(EmergencyInput) = 1
 	' Unset yellow led
 	LedUnset YellowLed
+	' Restart motors
+	StartMotor
+	' Set status
+	Status = NOM_CODE
+	' Send acknowledge message
+	AcknowledgeHandle NOM_CODE
 	Return
 		
 GOTDATA:
