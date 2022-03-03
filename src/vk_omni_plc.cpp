@@ -42,7 +42,7 @@ safetyPLC::safetyPLC(ros::NodeHandle *nh) :
 		id(156),
 		threadAlive(true)
 {
-	statusPublisher = nh->advertise<std_msgs::UInt8>("robot_status", 1);
+	statusPublisher = nh->advertise<std_msgs::UInt8>("robot_status", 10);
 
 	commandSubscriber = nh->subscribe("plc_commands", 10, &safetyPLC::commandSend, this);
 
@@ -137,20 +137,16 @@ int safetyPLC::responseRead()
 			if(statusPLC->flag)
 			{
 				statusPLC->flagDown();
-
 				return -2;
 			}
 			resendHandler();
-
 			return 2;
 		}
 
 		default:
 		{
 			if(statusPLC->resendCount != 0) statusPLC->resetResendCount();
-
 			statusUpdate(buff[2]);
-
 			return 0;
 		}
 	}
