@@ -164,7 +164,7 @@ End Sub
 Sub StopMotor()
 	Low Motor_1
 	Low Motor_2
-	Low Motor_2
+	Low Motor_3
 End Sub
 
 Sub StartMotor()
